@@ -1,0 +1,75 @@
+import plotly.express as px
+import streamlit as st
+import pandas as pd
+
+def plot_price_history(df: pd.DataFrame):
+    df = df.copy()
+    if df.empty:
+        return None
+    # ensure Date column exists
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"])
+    else:
+        if df.index.dtype.kind in "M":
+            df = df.reset_index().rename(columns={df.index.name: "Date"})
+    # require Symbol and Close
+    if "Symbol" not in df.columns or "Close" not in df.columns:
+        st.error("Required columns ('Close', 'Symbol') not found in data.")
+        return None
+
+    # Plot line chart similar to your format
+    st.markdown("#### 📈 Line Chart: Stock Price Trends (by Symbol)")
+    fig = px.line(
+        df,
+        x="Date",
+        y="Close",
+        color="Symbol",
+        markers=True,
+        labels={"Close": "Price", "Date": "Date"},
+        title="Stock Price Trends"
+    )
+    fig.update_layout(xaxis_title="Date", yaxis_title="Price", height=500, plot_bgcolor="rgba(0,0,0,0)", legend_title="Symbol")
+    return fig
+
+def plot_holdings_pie(df: pd.DataFrame):
+    if df.empty:
+        return None
+    if "Symbol" not in df.columns or "Close" not in df.columns:
+        st.error("Required columns ('Close', 'Symbol') not found in data.")
+        return None
+    # latest close per symbol
+    last = df.sort_values("Date").groupby("Symbol").tail(1).set_index("Symbol")
+    values = last["Close"]
+    st.markdown("#### 🥧 Holdings by Latest Price")
+    fig = px.pie(names=values.index, values=values.values, title="Holdings (by latest price)")
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return fig
+
+def plot_monthly_returns(df: pd.DataFrame):
+    if df.empty or "Date" not in df.columns or "Symbol" not in df.columns or "Close" not in df.columns:
+        return None
+    df["Date"] = pd.to_datetime(df["Date"])
+    df = df.sort_values("Date")
+    pivot = df.pivot_table(index=df["Date"].dt.to_period("M"), columns="Symbol", values="Close", aggfunc="last")
+    pivot = pivot.fillna(method="ffill").pct_change().dropna(how="all")
+    # convert index to string for plotly
+    pivot.index = pivot.index.astype(str)
+    # melt
+    mf = pivot.reset_index().melt(id_vars="Date", var_name="Symbol", value_name="Return")
+    st.markdown("#### 📈 Monthly Returns")
+    fig = px.bar(mf, x="Date", y="Return", color="Symbol", barmode="group", title="Monthly Returns by Symbol")
+    fig.update_layout(height=500, plot_bgcolor="rgba(0,0,0,0)")
+    return fig
+
+def plot_cumulative_returns(df: pd.DataFrame):
+    if df.empty or "Date" not in df.columns or "Symbol" not in df.columns or "Close" not in df.columns:
+        return None
+    df["Date"] = pd.to_datetime(df["Date"])
+    pivot = df.pivot_table(index="Date", columns="Symbol", values="Close", aggfunc="last").fillna(method="ffill")
+    returns = pivot.pct_change().fillna(0)
+    cum = (1 + returns).cumprod() - 1
+    mf = cum.reset_index().melt(id_vars="Date", var_name="Symbol", value_name="Cumulative")
+    st.markdown("#### 📈 Cumulative Return")
+    fig = px.line(mf, x="Date", y="Cumulative", color="Symbol", title="Cumulative Return")
+    fig.update_layout(height=500, plot_bgcolor="rgba(0,0,0,0)")
+    return fig
