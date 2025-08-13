@@ -1,0 +1,146 @@
+# modules/portfolio_utils.py
+import pandas as pd
+import numpy as np
+import streamlit as st
+
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    cols = {c.lower(): c for c in df.columns}
+    rename_map = {}
+
+    # Standardize known columns
+    if "close" in cols:
+        rename_map[cols["close"]] = "Close"
+    if "symbol" in cols:
+        rename_map[cols["symbol"]] = "Symbol"
+    if "date" in cols:
+        rename_map[cols["date"]] = "Date"
+
+    # Add your CSV-specific columns here:
+    if "purchase date" in cols:
+        rename_map[cols["purchase date"]] = "Date"
+    if "current price (₹)" in cols:
+        rename_map[cols["current price (₹)"]] = "Close"
+
+    if rename_map:
+        df.rename(columns=rename_map, inplace=True)
+
+    # Convert Date to datetime and sort
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df.sort_values("Date", inplace=True)
+
+    return df
+
+
+def generate_summary_df(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalize_columns(df)
+    if df.empty:
+        return pd.DataFrame({"Metric": [], "Value": []})
+    if "Symbol" not in df.columns:
+        return pd.DataFrame({"Metric": ["Error"], "Value": ["No Symbol column found"]})
+    # assume 1 share if not provided
+    shares_col = None
+    for name in ["Shares", "Quantity", "Qty"]:
+        if name in df.columns:
+            shares_col = name
+            break
+    if shares_col is None:
+        df["Shares"] = 1
+        shares_col = "Shares"
+
+    # use latest close per symbol (last available date)
+    last = df.sort_values("Date").groupby("Symbol").tail(1)
+    last = last.set_index("Symbol")
+    last_close = last["Close"]
+
+    investment = 0.0
+    if "Price" in df.columns:
+        # if the CSV included buy price per row
+        df["Investment"] = df[shares_col] * df["Price"]
+        investment = df["Investment"].sum()
+    elif "Investment" in df.columns:
+        investment = df["Investment"].sum()
+    else:
+        # unknown investment -> use current value as proxy
+        investment = (last_close * last[shares_col]).sum() if shares_col in last.columns else (last_close).sum()
+
+    current_value = (last_close * last.get(shares_col, 1)).sum()
+    total_gain = current_value - investment
+
+    top_holdings = last_close.sort_values(ascending=False).head(5)
+    top_df = pd.DataFrame({"Symbol": top_holdings.index, "Latest Close": top_holdings.values})
+
+    summary = [
+        {"Metric": "Number of Symbols", "Value": df["Symbol"].nunique()},
+        {"Metric": "Current Value (approx.)", "Value": f"{current_value:,.2f}"},
+        {"Metric": "Total Gain/Loss (approx.)", "Value": f"{total_gain:,.2f}"},
+    ]
+    summary_df = pd.DataFrame(summary)
+    return summary_df
+def performance_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    df = normalize_columns(df)
+
+    # Pick symbol column
+    if "Symbol" in df.columns:
+        symbol_key = "Symbol"
+    elif "Stock/Mutual Fund" in df.columns:
+        symbol_key = "Stock/Mutual Fund"
+    else:
+        return pd.DataFrame({"Metric": ["Error"], "Value": ["No data / missing Symbol or Stock/Mutual Fund column"]})
+
+    # Pick date column (fall back to Purchase Date)
+    if "Date" in df.columns:
+        date_key = "Date"
+    elif "Purchase Date" in df.columns:
+        date_key = "Purchase Date"
+    else:
+        return pd.DataFrame({"Metric": ["Error"], "Value": ["No recognizable date column found"]})
+
+    # Pick price column (match your CSV)
+    if "Close" in df.columns:
+        price_key = "Close"
+    elif "Price" in df.columns:
+        price_key = "Price"
+    elif "Current Price (₹)" in df.columns:
+        price_key = "Current Price (₹)"
+    else:
+        return pd.DataFrame({"Metric": ["Error"], "Value": ["No recognizable price column found"]})
+
+    # Convert date to datetime
+    df[date_key] = pd.to_datetime(df[date_key], errors="coerce")
+
+    # Sort
+    df_sorted = df.sort_values([symbol_key, date_key])
+
+    # If there's only one date per symbol, pivot will fail — skip time series calc
+    if df_sorted.groupby(symbol_key)[date_key].nunique().max() <= 1:
+        return pd.DataFrame({
+            "Symbol": df_sorted[symbol_key],
+            "Current Price": df_sorted[price_key]
+        })
+
+    # Pivot
+    pivot = df_sorted.pivot(index=date_key, columns=symbol_key, values=price_key)
+
+    # Daily returns
+    daily_ret = pivot.pct_change().dropna(how="all")
+
+    # Metrics
+    metrics = []
+    for sym in pivot.columns:
+        series = pivot[sym].dropna()
+        if series.empty:
+            continue
+        total_return = (series.iloc[-1] / series.iloc[0]) - 1
+        annualized = (1 + total_return) ** (365 / max(1, (series.index[-1] - series.index[0]).days)) - 1
+        vol = daily_ret[sym].std() * (252 ** 0.5) if sym in daily_ret else np.nan
+        metrics.append({
+            "Symbol": sym,
+            "Total Return": f"{total_return:.2%}",
+            "Annualized (est.)": f"{annualized:.2%}",
+            "Volatility (est.)": f"{vol:.2%}" if not np.isnan(vol) else "N/A"
+        })
+
+    return pd.DataFrame(metrics)
