@@ -11,7 +11,7 @@ It provides insights, summaries, and visualizations to help users track and unde
 - [Tech Stack](#tech-stack)  
 - [Project Structure](#project-structure)  
 - [Setup & Installation](#installation)    
-- [Usage](#usage/examples)  
+- [Usage](#usage-examples)  
 - [Future Enhancements](#future-enhancements)  
 - [Contributing](#contributing)  
 
@@ -85,7 +85,7 @@ Add your required API keys / environment variables inside a .env file.
      open http://localhost:5000
 
 
-## Usage/Examples
+## Usage Examples
 - Upload your portfolio data (CSV/Excel)
 
 - View portfolio summary (profit/loss, allocations)
