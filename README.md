@@ -9,9 +9,8 @@ It provides insights, summaries, and visualizations to help users track and unde
 
 - [Features](#features)  
 - [Tech Stack](#tech-stack)  
-- [Project Structure](#project-structure)  
-- [Setup & Installation](#setup-installation)  
-- [Running the App](#installation)  
+- [Project Structure](#project)  
+- [Setup & Installation](#installation)    
 - [Usage](#usage/examples)  
 - [Future Enhancements](#future-enhancements)  
 - [Contributing](#contributing)  
