@@ -9,12 +9,12 @@ It provides insights, summaries, and visualizations to help users track and unde
 
 - [Features](#features)  
 - [Tech Stack](#tech-stack)  
-- [Project Structure](#project)  
+- [Project Structure](#project-structure)  
 - [Setup & Installation](#installation)    
 - [Usage](#usage/examples)  
 - [Future Enhancements](#future-enhancements)  
 - [Contributing](#contributing)  
-- [License](#license)
+
 ## Features
 
 - Upload and process portfolio data (CSV or other supported formats)
@@ -37,7 +37,7 @@ It provides insights, summaries, and visualizations to help users track and unde
 
 
 
-## 📂 Project Structure
+## Project Structure
 
 ```plaintext
 StockPulse/
